@@ -113,6 +113,18 @@ p {
   box-shadow: 3px 3px 0 rgba(38, 50, 56, 0.2);
 }
 
+.camera-button {
+  grid-template-columns: auto auto;
+  gap: 8px;
+  width: auto;
+  padding: 0 14px;
+}
+
+.camera-symbol {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
 .import-button input {
   position: absolute;
   width: 1px;

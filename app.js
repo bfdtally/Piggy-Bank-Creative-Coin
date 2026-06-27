@@ -229,7 +229,7 @@ function renderAdminClasses() {
         <small>${students.length} savers, ${total} coins - ${escapeHtml(updated)}</small>
       </div>
       <div class="admin-class-actions">
-        <button type="button" data-admin-action="json">JSON</button>
+        <button type="button" data-admin-action="csv">Excel / CSV</button>
         <button type="button" data-admin-action="svg">SVG</button>
       </div>
     `;
@@ -427,52 +427,23 @@ function dogTagNameSvg(name, x, y, maxWidth, fontSize = 27, lineHeight = 30) {
   }).join("");
 }
 
-async function logoDataUrl() {
-  const response = await fetch("assets/creative-coin-logo.png");
-  const blob = await response.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function blackWhiteLogoDataUrl() {
-  const source = await logoDataUrl();
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      const context = canvas.getContext("2d");
-      context.drawImage(image, 0, 0);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-      for (let index = 0; index < pixels.data.length; index += 4) {
-        const alpha = pixels.data[index + 3];
-        const brightness = pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114;
-        const value = alpha < 24 || brightness > 205 ? 255 : 0;
-        pixels.data[index] = value;
-        pixels.data[index + 1] = value;
-        pixels.data[index + 2] = value;
-        pixels.data[index + 3] = alpha < 24 ? 0 : 255;
-      }
-      context.putImageData(pixels, 0, 0);
-      resolve(canvas.toDataURL("image/png"));
-    };
-    image.onerror = () => resolve(source);
-    image.src = source;
-  });
+async function xtoolLogoSymbol() {
+  const response = await fetch("assets/creative-coin-logo-xtool.svg");
+  if (!response.ok) throw new Error("Could not load xTool logo");
+  const source = await response.text();
+  const documentSvg = new DOMParser().parseFromString(source, "image/svg+xml");
+  const root = documentSvg.documentElement;
+  return `<symbol id="creative-coin-xtool-logo" viewBox="${root.getAttribute("viewBox") || "59 32 394 465"}">${root.innerHTML}</symbol>`;
 }
 
 function svgId(value) {
   return fileSlug(value).replace(/^-?(\d)/, "student-$1");
 }
 
-function createXtoolFrontGroup(student, logo, id) {
+function createXtoolFrontGroup(student, id) {
   return `<g id="${id}-front" transform="translate(0 0)">
-  <image href="${logo}" xlink:href="${logo}" x="34" y="46" width="142" height="170" preserveAspectRatio="xMidYMid meet"/>
-  ${dogTagNameSvg(student.name, 105, 265, 160, 19, 23)}
+  <use href="#creative-coin-xtool-logo" xlink:href="#creative-coin-xtool-logo" x="34" y="26" width="142" height="190"/>
+  ${dogTagNameSvg(student.name, 105, 266, 180, 30, 34)}
 </g>`;
 }
 
@@ -496,19 +467,20 @@ async function createXtoolSvgSheet(students) {
   const rows = Math.max(1, Math.ceil(students.length / pairsPerRow));
   const width = margin * 2 + pairsPerRow * pairWidth + (pairsPerRow - 1) * studentGap;
   const height = margin * 2 + rows * tagHeight + (rows - 1) * rowGap;
-  const logo = await blackWhiteLogoDataUrl();
+  const logoSymbol = await xtoolLogoSymbol();
   const groups = students.map((student, index) => {
     const column = index % pairsPerRow;
     const row = Math.floor(index / pairsPerRow);
     const x = margin + column * (pairWidth + studentGap);
     const y = margin + row * (tagHeight + rowGap);
     const id = svgId(student.name || student.id);
-    const front = createXtoolFrontGroup(student, logo, id).replace('transform="translate(0 0)"', `transform="translate(${x} ${y})"`);
+    const front = createXtoolFrontGroup(student, id).replace('transform="translate(0 0)"', `transform="translate(${x} ${y})"`);
     const back = createXtoolBackGroup(student, id).replace('transform="translate(0 0)"', `transform="translate(${x + tagWidth + sideGap} ${y})"`);
     return `${front}\n${back}`;
   }).join("\n");
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+<defs>${logoSymbol}</defs>
 ${groups}
 </svg>`;
 }
@@ -978,11 +950,47 @@ function adminClassByCode(classCode) {
   return admin.classes.find((classRecord) => classRecord.class_code === classCode) || null;
 }
 
+function csvCell(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function createClassCsv(classRecord) {
+  const classState = classRecord.state || {};
+  const students = Array.isArray(classState.students) ? classState.students : [];
+  const rows = [
+    ["Class Code", classRecord.class_code || ""],
+    ["Teacher", classState.teacher || ""],
+    ["Exported", new Date().toLocaleString()],
+    [],
+    ["Student", "Balance", "Transaction", "Amount", "Reason", "Date"]
+  ];
+
+  students.forEach((student) => {
+    const entries = Array.isArray(student.entries) ? student.entries : [];
+    if (!entries.length) {
+      rows.push([student.name, student.balance, "", "", "", ""]);
+      return;
+    }
+    entries.forEach((item) => {
+      rows.push([
+        student.name,
+        student.balance,
+        item.type === "earn" ? "Earn" : "Spend",
+        item.amount,
+        item.reason,
+        item.at ? new Date(item.at).toLocaleString() : ""
+      ]);
+    });
+  });
+
+  return `\ufeff${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+}
+
 async function downloadAdminClassFile(classRecord, action) {
   const classState = classRecord.state || {};
   const slug = fileSlug(classRecord.class_code || classState.teacher || "class");
-  if (action === "json") {
-    download(`${slug}-piggy-bank-data.json`, JSON.stringify(classState, null, 2), "application/json");
+  if (action === "csv") {
+    download(`${slug}-creative-coins.csv`, createClassCsv(classRecord), "text/csv;charset=utf-8");
     return;
   }
   if (action === "svg") {
