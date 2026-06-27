@@ -427,22 +427,54 @@ function dogTagNameSvg(name, x, y, maxWidth, fontSize = 27, lineHeight = 30) {
   }).join("");
 }
 
-async function xtoolLogoSymbol() {
+function compactRectPath(pathData) {
+  const pattern = /M([\d.]+) ([\d.]+)H([\d.]+)V([\d.]+)H[\d.]+Z/g;
+  const active = new Map();
+  const rectangles = [];
+  let match;
+
+  while ((match = pattern.exec(pathData))) {
+    const rectangle = {
+      x1: Number(match[1]),
+      y1: Number(match[2]),
+      x2: Number(match[3]),
+      y2: Number(match[4])
+    };
+    const key = `${rectangle.x1},${rectangle.x2}`;
+    const previous = active.get(key);
+    if (previous && previous.y2 === rectangle.y1) {
+      previous.y2 = rectangle.y2;
+    } else {
+      if (previous) rectangles.push(previous);
+      active.set(key, rectangle);
+    }
+  }
+
+  rectangles.push(...active.values());
+  if (!rectangles.length) return pathData;
+  return rectangles.map((rectangle) => (
+    `M${rectangle.x1} ${rectangle.y1}H${rectangle.x2}V${rectangle.y2}H${rectangle.x1}Z`
+  )).join(" ");
+}
+
+async function xtoolLogoPaths() {
   const response = await fetch("assets/creative-coin-logo-xtool.svg");
   if (!response.ok) throw new Error("Could not load xTool logo");
   const source = await response.text();
   const documentSvg = new DOMParser().parseFromString(source, "image/svg+xml");
   const root = documentSvg.documentElement;
-  return `<symbol id="creative-coin-xtool-logo" viewBox="${root.getAttribute("viewBox") || "59 32 394 465"}">${root.innerHTML}</symbol>`;
+  return Array.from(root.querySelectorAll("path")).map((path) => (
+    `<path d="${compactRectPath(path.getAttribute("d") || "")}" fill="#000000" stroke="none"/>`
+  )).join("");
 }
 
 function svgId(value) {
   return fileSlug(value).replace(/^-?(\d)/, "student-$1");
 }
 
-function createXtoolFrontGroup(student, id) {
+function createXtoolFrontGroup(student, logoPaths, id) {
   return `<g id="${id}-front" transform="translate(0 0)">
-  <use href="#creative-coin-xtool-logo" xlink:href="#creative-coin-xtool-logo" x="34" y="26" width="142" height="190"/>
+  <g transform="translate(34 37.216) scale(0.360406) translate(-59 -32)">${logoPaths}</g>
   ${dogTagNameSvg(student.name, 105, 266, 180, 30, 34)}
 </g>`;
 }
@@ -467,20 +499,19 @@ async function createXtoolSvgSheet(students) {
   const rows = Math.max(1, Math.ceil(students.length / pairsPerRow));
   const width = margin * 2 + pairsPerRow * pairWidth + (pairsPerRow - 1) * studentGap;
   const height = margin * 2 + rows * tagHeight + (rows - 1) * rowGap;
-  const logoSymbol = await xtoolLogoSymbol();
+  const logoPaths = await xtoolLogoPaths();
   const groups = students.map((student, index) => {
     const column = index % pairsPerRow;
     const row = Math.floor(index / pairsPerRow);
     const x = margin + column * (pairWidth + studentGap);
     const y = margin + row * (tagHeight + rowGap);
     const id = svgId(student.name || student.id);
-    const front = createXtoolFrontGroup(student, id).replace('transform="translate(0 0)"', `transform="translate(${x} ${y})"`);
+    const front = createXtoolFrontGroup(student, logoPaths, id).replace('transform="translate(0 0)"', `transform="translate(${x} ${y})"`);
     const back = createXtoolBackGroup(student, id).replace('transform="translate(0 0)"', `transform="translate(${x + tagWidth + sideGap} ${y})"`);
     return `${front}\n${back}`;
   }).join("\n");
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-<defs>${logoSymbol}</defs>
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
 ${groups}
 </svg>`;
 }
