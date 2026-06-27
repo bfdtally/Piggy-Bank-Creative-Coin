@@ -1,11 +1,11 @@
-const CACHE_NAME = "piggy-bank-v26";
+const CACHE_NAME = "piggy-bank-v27";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=26",
-  "./assets/jsQR.js?v=26",
-  "./app.js?v=26",
-  "./manifest.webmanifest?v=26",
+  "./styles.css?v=27",
+  "./assets/jsQR.js?v=27",
+  "./app.js?v=27",
+  "./manifest.webmanifest?v=27",
   "./assets/creative-coin-logo.png",
   "./assets/creative-coin-logo-xtool.svg",
   "./assets/little-saver-pig.png",

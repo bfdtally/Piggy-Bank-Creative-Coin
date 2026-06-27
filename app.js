@@ -230,6 +230,7 @@ function renderAdminClasses() {
       </div>
       <div class="admin-class-actions">
         <button type="button" data-admin-action="csv">Excel / CSV</button>
+        <button type="button" data-admin-action="cards">Cards</button>
         <button type="button" data-admin-action="svg">SVG</button>
       </div>
     `;
@@ -344,22 +345,22 @@ function addTransaction(student, type, amount, reason) {
   return true;
 }
 
-function createCardSvg(student) {
-  const qr = qrSvg(studentQrValue(student), 258, 82, 80);
+function cardNameSvg(name) {
+  const safeName = name.trim();
+  const textLength = safeName.length > 17 ? ' textLength="304" lengthAdjust="spacingAndGlyphs"' : "";
+  return `<text x="180" y="198" text-anchor="middle" font-family="Arial, sans-serif" font-size="29" font-weight="900" fill="#111111"${textLength}>${escapeXml(safeName)}</text>`;
+}
+
+function createCardSvg(student, logoPaths) {
+  const qr = qrSvg(studentQrValue(student), 215, 29, 110);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="220" viewBox="0 0 360 220">
-  <rect width="360" height="220" rx="18" fill="#fffaf0"/>
-  <rect x="10" y="10" width="340" height="200" rx="14" fill="#ffffff" stroke="#263238" stroke-width="4"/>
-  <circle cx="82" cy="102" r="46" fill="#f7a8b8" stroke="#263238" stroke-width="4"/>
-  <circle cx="68" cy="92" r="4" fill="#263238"/>
-  <circle cx="96" cy="92" r="4" fill="#263238"/>
-  <ellipse cx="82" cy="112" rx="16" ry="11" fill="#f08096"/>
-  <text x="28" y="38" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#66737a">PIGGY BANK</text>
-  <text x="140" y="94" font-family="Arial, sans-serif" font-size="32" font-weight="900" fill="#263238">${escapeXml(student.name)}</text>
-  <text x="140" y="132" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#35a875">${student.balance} Creative Coins</text>
-  <rect x="252" y="76" width="92" height="92" rx="8" fill="#ffffff" stroke="#263238" stroke-width="3"/>
+  <rect width="360" height="220" rx="16" fill="#ffffff"/>
+  <rect x="4" y="4" width="352" height="212" rx="14" fill="none" stroke="#111111" stroke-width="3"/>
+  <g transform="translate(34 24) scale(0.312) translate(-59 -32)">${logoPaths}</g>
+  <rect x="207" y="21" width="126" height="126" rx="6" fill="#ffffff" stroke="#111111" stroke-width="3"/>
   ${qr}
-  <text x="28" y="188" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#263238">${escapeXml(state.teacher)}</text>
+  ${cardNameSvg(student.name)}
 </svg>`;
 }
 
@@ -367,7 +368,7 @@ function placeSvg(svg, x, y) {
   return svg.replace("<svg ", `<svg x="${x}" y="${y}" `);
 }
 
-function createCardSheetSvg(students) {
+async function createCardSheetSvg(students) {
   const cardWidth = 360;
   const cardHeight = 220;
   const margin = 24;
@@ -376,12 +377,13 @@ function createCardSheetSvg(students) {
   const rows = Math.max(1, Math.ceil(students.length / columns));
   const width = margin * 2 + columns * cardWidth + (columns - 1) * gap;
   const height = margin * 2 + rows * cardHeight + (rows - 1) * gap;
+  const logoPaths = await xtoolLogoPaths();
   const cards = students.map((student, index) => {
     const column = index % columns;
     const row = Math.floor(index / columns);
     const x = margin + column * (cardWidth + gap);
     const y = margin + row * (cardHeight + gap);
-    return placeSvg(createCardSvg(student), x, y);
+    return placeSvg(createCardSvg(student, logoPaths), x, y);
   }).join("\n");
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -1024,6 +1026,15 @@ async function downloadAdminClassFile(classRecord, action) {
     download(`${slug}-creative-coins.csv`, createClassCsv(classRecord), "text/csv;charset=utf-8");
     return;
   }
+  if (action === "cards") {
+    const students = Array.isArray(classState.students) ? classState.students : [];
+    if (!students.length) {
+      renderAdminStatus("No savers to print");
+      return;
+    }
+    await printCards(students);
+    return;
+  }
   if (action === "svg") {
     const students = Array.isArray(classState.students) ? classState.students : [];
     if (!students.length) {
@@ -1063,16 +1074,18 @@ async function saveCloudNow(successMessage = "Synced") {
   }
 }
 
-function printCards(students) {
+async function printCards(students) {
+  const logoPaths = await xtoolLogoPaths();
   document.querySelector("#printSheet")?.remove();
   const sheet = document.createElement("main");
   sheet.id = "printSheet";
   sheet.style.gridTemplateColumns = "repeat(2, 360px)";
   sheet.style.gap = "18px";
   sheet.style.padding = "24px";
-  sheet.innerHTML = students.map(createCardSvg).join("");
+  sheet.innerHTML = students.map((student) => createCardSvg(student, logoPaths)).join("");
   document.body.append(sheet);
   document.body.classList.add("printing-cards");
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   window.print();
   document.body.classList.remove("printing-cards");
 }
@@ -1167,9 +1180,9 @@ dom.resetStudent.addEventListener("click", () => {
   render();
 });
 
-dom.printOne.addEventListener("click", () => {
+dom.printOne.addEventListener("click", async () => {
   const student = selectedStudent();
-  if (student) printCards([student]);
+  if (student) await printCards([student]);
 });
 
 dom.downloadSvg.addEventListener("click", async () => {
