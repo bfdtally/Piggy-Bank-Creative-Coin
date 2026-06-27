@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7b733">
     <title>Piggy Bank</title>
-    <link rel="manifest" href="manifest.webmanifest?v=18">
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="manifest" href="manifest.webmanifest?v=24">
+    <link rel="stylesheet" href="styles.css?v=24">
   </head>
   <body>
     <header class="topbar">
@@ -21,16 +21,6 @@
         <button class="icon-button" id="scanCode" type="button" title="Scan QR" aria-label="Scan QR">
           <span aria-hidden="true">⌖</span>
         </button>
-        <button class="icon-button" id="printCards" type="button" title="Print cards" aria-label="Print cards">
-          <span aria-hidden="true">▣</span>
-        </button>
-        <button class="icon-button" id="exportData" type="button" title="Download data" aria-label="Download data">
-          <span aria-hidden="true">↓</span>
-        </button>
-        <label class="icon-button import-button" title="Import data" aria-label="Import data">
-          <span aria-hidden="true">↑</span>
-          <input id="importData" type="file" accept="application/json">
-        </label>
       </div>
     </header>
 
@@ -54,6 +44,37 @@
           <button type="button" data-class-action="payday">Payday +10</button>
           <button type="button" data-class-action="cleanup">Clean Up +2</button>
         </div>
+
+        <form class="cloud-panel" id="cloudForm">
+          <div>
+            <h2>Cloud Class</h2>
+            <p id="cloudStatus">Local only</p>
+          </div>
+          <label for="classCode">Class code</label>
+          <input id="classCode" type="text" autocomplete="off" placeholder="Example: ROOM-12">
+          <label for="classPin">Teacher PIN</label>
+          <input id="classPin" type="password" autocomplete="off" inputmode="numeric" placeholder="4+ digits">
+          <div class="cloud-actions">
+            <button type="submit">Connect</button>
+            <button type="button" id="syncNow">Sync</button>
+          </div>
+        </form>
+
+        <section class="admin-panel" aria-label="Administration">
+          <form id="adminForm">
+            <div>
+              <h2>Administration</h2>
+              <p id="adminStatus">Admin locked</p>
+            </div>
+            <label for="adminPin">Admin PIN</label>
+            <input id="adminPin" type="password" autocomplete="off" inputmode="numeric" placeholder="Admin PIN">
+            <div class="cloud-actions">
+              <button type="submit">Login</button>
+              <button type="button" id="adminRefresh">Refresh</button>
+            </div>
+          </form>
+          <div class="admin-classes" id="adminClasses" hidden></div>
+        </section>
       </section>
 
       <section class="student-area" aria-label="Student piggy banks">
@@ -125,8 +146,7 @@
 
           <div class="detail-actions">
             <button type="button" id="printOne">Card</button>
-            <button type="button" id="downloadDogTag">Dog Tag</button>
-            <button type="button" id="downloadSvg">SVG</button>
+            <button type="button" id="downloadSvg">SVG Sheet</button>
             <button type="button" id="resetStudent">Reset</button>
           </div>
 
@@ -165,6 +185,7 @@
       </article>
     </template>
 
-    <script src="app.js?v=18"></script>
+    <script src="assets/jsQR.js?v=24"></script>
+    <script src="app.js?v=24"></script>
   </body>
 </html>
